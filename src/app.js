@@ -2,38 +2,38 @@ import { baseUrl, apiToken, imageUrl } from "./config.js";
 
 const nowPlayingEndpoint = `${baseUrl}/movie/now_playing`;
 const searchMovieEndpoint = (query) => `${baseUrl}/search/movie?query=${query}`;
-const movieDetailEndpoint = (movieId) => `${baseUrl}/movie/movie_id=${movieId}`;
+const movieDetailEndpoint = (movieId) => `${baseUrl}/movie/${movieId}`;
 const fetchOptions = {
-  method: "GET",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiToken}`,
-  },
+    method: "GET",
+    headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiToken}`,
+    },
 };
 const contentElm = document.querySelector("#content");
 const app = () => {
-  const displayLoading = (state) => {
-    if (state) {
-      contentElm.innerHTML = `
+    const displayLoading = (state) => {
+        if (state) {
+            contentElm.innerHTML = `
       <div class="text-center">
         <div class="spinner-border text-center" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
       </div>
         `;
-    }
-  };
-  const displayMovies = (movies) => {
-    let moviesTemplate = `
+        }
+    };
+    const displayMovies = (movies) => {
+        let moviesTemplate = `
         <div class="row row-cols-1 row-cols-md-3 g-2 g-4">
         `;
-    if (movies.length < 1) {
-      displayAlert("Data tidak ditemukan");
-      return false;
-    }
-    movies.forEach((movie) => {
-      const { id, original_title, overview, poster_path } = movie;
-      moviesTemplate += `
+        if (movies.length < 1) {
+            displayAlert("Data tidak ditemukan");
+            return false;
+        }
+        movies.forEach((movie) => {
+            const { id, original_title, overview, poster_path } = movie;
+            moviesTemplate += `
             <div class="col-lg-4 col-md-6 col-sm-12">
             <div class="card h-100">
               <img src="${imageUrl}${poster_path}" class="card-img-top" alt="..." />
@@ -42,70 +42,119 @@ const app = () => {
                 <p class="card-text truncate">
                   ${overview}
                 </p>
-                <a href="#" data-id="${id}" class="card-link">Detil</a>
+                <a data-id="${id}" class="card-link">Detail</a>
               </div>
             </div>
           </div>
             `;
+        });
+        moviesTemplate += `</div>`;
+        contentElm.innerHTML = moviesTemplate;
+    };
+    const getNowPlayingList = () => {
+        displayLoading(true);
+        fetch(nowPlayingEndpoint, fetchOptions)
+            .then((response) => response.json())
+            .then((responseJson) => displayMovies(responseJson.results))
+            .catch((error) => console.error(error));
+    };
+
+    const displayAlert = (message) => {
+        contentElm.innerHTML = `
+        <div class="alert alert-warning" role="alert">
+            ${message}
+        </div>`;
+    };
+    const searchBtn = document.querySelector("#btnSearch");
+    const searchText = document.querySelector("#searchInput");
+    searchText.addEventListener("input", function (event) {
+        if (this.value.length < 1) getNowPlayingList();
     });
-    moviesTemplate += `</div>`;
-    contentElm.innerHTML = moviesTemplate;
-  };
-  const getNowPlayingList = () => {
-    displayLoading(true);
-    fetch(nowPlayingEndpoint, fetchOptions)
-      .then((response) => response.json())
-      .then((responseJson) => displayMovies(responseJson.results))
-      .catch((error) => console.error(error));
-  };
 
-  const displayAlert = (message) => {
-    contentElm.innerHTML = `<div class="alert alert-warning" role="alert">
-    ${message}
-  </div>`;
-  };
-  const searchBtn = document.querySelector("#btnSearch");
-  const searchText = document.querySelector("#searchInput");
-  searchText.addEventListener("input", function (event) {
-    if (this.value.length < 1) getNowPlayingList();
-  });
+    searchText.addEventListener("keydown", function (event) {
+        if (
+            this.value.length > 0 &&
+            (event.key === "Enter" || event.keyCode === 13)
+        ) {
+            event.preventDefault();
+            searchMovies();
+        }
+    });
 
-  searchText.addEventListener("keydown", function (event) {
-    if (
-      this.value.length > 0 &&
-      (event.key === "Enter" || event.keyCode === 13)
-    ) {
-      event.preventDefault();
-      searchMovies();
-    }
-  });
+    searchBtn.addEventListener("click", function (event) {
+        event.preventDefault();
+        if (searchText.value.length > 1) searchMovies();
+    });
+    const searchMovies = async () => {
+        displayLoading(true);
+        try {
+            const movieList = await fetch(
+                searchMovieEndpoint(searchText.value),
+                fetchOptions
+            );
+            const responseJson = await movieList.json();
+            displayMovies(responseJson.results);
+            console.log(responseJson.results);
+        } catch (error) {
+            console.log(error);
+            displayAlert("Terjadi error saat mengambil data");
+        }
+    };
+    contentElm.addEventListener("click", function (event) {
+        if (event.target.classList.contains("card-link")) {
+            //   console.log(this.target);
+            const movieId = event.target.dataset.id;
+            const movieDetailUrl = movieDetailEndpoint(movieId);
+            fetch(movieDetailUrl, fetchOptions)
+                .then((response) => response.json())
+                .then((responseJson) => {
+                    console.log(responseJson);
+                    document.getElementById("for-modal").innerHTML = `
+                    <div class="modal fade show" id="movieDetailModal" tabindex="-1" aria-labelledby="movieDetailModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-xl">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="movieDetailModalLabel">${responseJson.original_title}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-5">
+                                        <img src="${imageUrl}${responseJson.poster_path}" class="img-fluid img-thumbnail" style="width: 300px; height: 450px;" alt="${responseJson.original_title}" />
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <p>${responseJson.overview}</p>
+                                                <p>Release Date: ${responseJson.release_date}</p>
+                                                <p>Rating: ${responseJson.vote_average} / 10</p>
+                                                <p>Vote Count: ${responseJson.vote_count}</p>
+                                                <p>Popularity: ${responseJson.popularity}</p>
+                                                <p>Original Language: ${responseJson.original_language}</p>
+                                                <p>Genres: ${responseJson.genres
+                                                    .map((genre) => genre.name)
+                                                    .join(", ")}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                    new bootstrap.Modal(
+                        document.getElementById("movieDetailModal")
+                    ).show();
+                })
+                .catch((error) => {
+                    console.error(error);
+                    displayAlert("Terjadi error saat mengambil data");
+                });
+        }
+    });
 
-  searchBtn.addEventListener("click", function (event) {
-    event.preventDefault();
-    if (searchText.value.length > 1) searchMovies();
-  });
-  const searchMovies = async () => {
-    displayLoading(true);
-    try {
-      const movieList = await fetch(
-        searchMovieEndpoint(searchText.value),
-        fetchOptions
-      );
-      const responseJson = await movieList.json();
-      displayMovies(responseJson.results);
-      console.log(responseJson.results);
-    } catch (error) {
-      console.log(error);
-      displayAlert("Terjadi error saat mengambil data");
-    }
-  };
-  contentElm.addEventListener("click", function (event) {
-    if (event.target.classList.contains("card-link")) {
-      //   console.log(this.target);
-      const movieId = event.target.dataset.id;
-      //   panggil function untuk menampilkan detail film
-    }
-  });
-  window.addEventListener("DOMContentLoaded", getNowPlayingList);
+    window.addEventListener("DOMContentLoaded", getNowPlayingList);
 };
 export default app;
